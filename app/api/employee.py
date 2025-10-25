@@ -4,9 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List, Optional
 from sqlalchemy.orm import joinedload
+from datetime import date
 
 from app.database import get_session
-from app.models import Employee, Otdel, Post, Role
+from app.models import Employee, Otdel, Post, Role, Action, ActionType
 
 class EmployeeCreate(BaseModel):
     surname: str
@@ -45,6 +46,30 @@ class EmployeeUpdate(BaseModel):
 class EmployeeAddHours(BaseModel):
     idle_hours: int
 
+class EmployeeLogin(BaseModel):
+    login: str
+    password: str
+
+class EmployeeLoginResponse(BaseModel):
+    employee_id: int
+    surname: str
+    name: str
+    patronymic: str
+    login: str
+    idle_hours: int
+    otdel_id: int
+    role_id: int
+    post_id: int
+
+    class Config:
+        from_attributes = True
+
+class EmployeeActionResponse(BaseModel):
+    action_id: int
+    hours: int
+    date_action: date
+    actiontype_id: int
+    action_type_name: str
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
@@ -117,6 +142,52 @@ async def create_employee(employee: EmployeeCreate, db: AsyncSession = Depends(g
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Ошибка при создании сотрудника: {str(e)}")
 
+
+@router.post("/login", response_model=EmployeeLoginResponse)
+async def login_employee(login_data: EmployeeLogin, db: AsyncSession = Depends(get_session)):
+    """
+    Авторизация сотрудника по логину и паролю
+    """
+    try:
+        # Ищем сотрудника по логину и паролю
+        result = await db.execute(
+            select(Employee).options(
+                joinedload(Employee.otdel),
+                joinedload(Employee.post),
+                joinedload(Employee.role)
+            ).where(
+                Employee.login == login_data.login,
+                Employee.password == login_data.password
+            )
+        )
+        employee = result.scalars().first()
+
+        if not employee:
+            raise HTTPException(
+                status_code=401,
+                detail="Неверный логин или пароль"
+            )
+
+        # Возвращаем данные сотрудника
+        return EmployeeLoginResponse(
+            employee_id=employee.employee_id,
+            surname=employee.surname,
+            name=employee.name,
+            patronymic=employee.patronymic,
+            login=employee.login,
+            idle_hours=employee.idle_hours,
+            otdel_id=employee.otdel_id,
+            post_id=employee.post_id,
+            role_id=employee.role_id
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка при авторизации: {str(e)}"
+        )
 
 @router.get("/all", response_model=List[EmployeeResponse])
 async def get_all_employees(db: AsyncSession = Depends(get_session)):
@@ -300,3 +371,33 @@ async def delete_employee(employee_id: int, db: AsyncSession = Depends(get_sessi
     await db.delete(employee)
     await db.commit()
     return {"message": "Сотрудник успешно удален"}
+
+
+@router.get("/{employee_id}/actions", response_model=List[EmployeeActionResponse])
+async def get_actions_by_employee(employee_id: int, db: AsyncSession = Depends(get_session)):
+    """
+    Получение всех действий по ID сотрудника с информацией о сотруднике
+    """
+    result = await db.execute(
+        select(Action).options(
+            joinedload(Action.employee),
+            joinedload(Action.actiontype)
+        ).where(Action.employee_id == employee_id)
+    )
+    actions = result.scalars().all()
+
+    if not actions:
+        raise HTTPException(status_code=404, detail="Действия для данного сотрудника не найдены")
+
+    # Явно создаем объекты ответа
+    response_actions = []
+    for action in actions:
+        response_actions.append(EmployeeActionResponse(
+            action_id=action.action_id,
+            hours=action.hours,
+            date_action=action.date_action,
+            actiontype_id=action.actiontype_id,
+            action_type_name=action.actiontype.name_type,
+        ))
+
+    return response_actions

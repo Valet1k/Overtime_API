@@ -8,6 +8,7 @@ from datetime import date
 
 from app.database import get_session  # импорт асинхронной сессии
 from app.models import Action, Employee, ActionType
+from app.api.employee import add_hours, EmployeeAddHours
 
 class ActionCreate(BaseModel):
     hours: int
@@ -52,6 +53,7 @@ async def create_action(action: ActionCreate, db: AsyncSession = Depends(get_ses
                             employee_id = action.employee_id,
                             actiontype_id = action.actiontype_id)
         db.add(db_action)
+        existing_employee.idle_hours += action.hours
         await db.commit()
         await db.refresh(db_action)
 
