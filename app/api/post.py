@@ -54,9 +54,21 @@ async def get_all_posts(db: AsyncSession = Depends(get_session)):
     """
     Получение всех должностей
     """
-    result = await db.execute(select(Post))
-    posts = result.scalars().all()
-    return posts
+    try:
+        result = await db.execute(select(Post))
+        posts = result.scalars().all()
+
+        # Если Post уже соответствует PostResponse, можно вернуть напрямую
+        # Если нет - преобразуем
+        return [
+            PostResponse(
+                post_id=post.post_id,
+                name_post=post.name_post
+            )
+            for post in posts
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при получении должностей: {str(e)}")
 
 
 @router.get("/{post_id}", response_model=PostResponse)

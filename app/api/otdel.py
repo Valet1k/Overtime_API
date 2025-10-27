@@ -52,11 +52,22 @@ async def create_otdel(otdel: OtdelCreate, db: AsyncSession = Depends(get_sessio
 @router.get("/all", response_model=List[OtdelResponse])
 async def get_all_otdels(db: AsyncSession = Depends(get_session)):
     """
-    Получение всех отделов
-    """
-    result = await db.execute(select(Otdel))
-    otdels = result.scalars().all()
-    return otdels
+       Получение всех отделов
+       """
+    try:
+        result = await db.execute(select(Otdel))
+        otdels = result.scalars().all()
+
+
+        return [
+            OtdelResponse(
+                otdel_id=otdel.otdel_id,
+                name_otdel=otdel.name_otdel
+            )
+            for otdel in otdels
+        ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при получении отделов: {str(e)}")
 
 
 @router.get("/{otdel_id}", response_model=OtdelResponse)
