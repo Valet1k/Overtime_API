@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
-from datetime import date
+from datetime import date, datetime
 
 
 from app.database import get_session  # импорт асинхронной сессии
@@ -12,7 +12,7 @@ from app.api.employee import add_hours, EmployeeAddHours
 
 class ActionCreate(BaseModel):
     hours: int
-    date_action: date
+    date_action: str
     employee_id: int
     actiontype_id: int
 
@@ -49,7 +49,7 @@ async def create_action(action: ActionCreate, db: AsyncSession = Depends(get_ses
 
         # Создаем новое действие сотруднику
         db_action = Action( hours = action.hours,
-                            date_action = action.date_action,
+                            date_action = datetime.strptime(action.date_action, "%Y-%m-%d"),
                             employee_id = action.employee_id,
                             actiontype_id = action.actiontype_id)
         db.add(db_action)

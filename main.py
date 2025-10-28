@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import init_db, get_session
-from app.api import otdel, post, employee, action
+from app.api import otdel, post, employee, action, document
 from contextlib import asynccontextmanager
 
 from app.models import Employee
@@ -26,6 +26,7 @@ app.include_router(otdel.router)
 app.include_router(post.router)
 app.include_router(employee.router)
 app.include_router(action.router)
+app.include_router(document.router)
 
 @app.get("/")
 async def root():
